@@ -6,9 +6,10 @@ import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Calendar, Clock, Globe, MapPin, Tag, Users } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
-import { Linking, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, Modal, Platform, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 
 export default function EventDetailsScreen() {
+  const { width } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, role } = useAuth();
   const router = useRouter();
@@ -52,6 +53,10 @@ export default function EventDetailsScreen() {
     return () => { mounted = false; };
   }, [id, user?.id]);
 
+  // Responsive metrics
+  const SAFE_TOP_PAD = Platform.select({ ios: 8, android: (StatusBar.currentHeight || 0) + 8, default: 8 });
+  const CONTENT_MAX_WIDTH = width >= 768 ? 720 : width >= 600 ? 560 : undefined;
+
   if (!event) {
     return (
       <SafeAreaView style={[styles.container, { padding: 16 }]}>
@@ -85,7 +90,7 @@ export default function EventDetailsScreen() {
             <View style={[styles.hero, { backgroundColor: '#E6EDFF' }]} />
           )}
           <View style={styles.heroOverlay} />
-          <View style={styles.heroHeader}>
+          <View style={[styles.heroHeader, { top: 18 + (SAFE_TOP_PAD as number) }]}>
             <TouchableOpacity onPress={() => router.back()} style={styles.heroBtn}><Text style={styles.heroBtnText}>Back</Text></TouchableOpacity>
           </View>
           <View style={styles.heroFooter}>
@@ -104,7 +109,11 @@ export default function EventDetailsScreen() {
         </View>
 
         {/* Quick facts */}
-  <View style={[styles.section, { paddingTop: 12 }]}>
+        <View style={[
+          styles.section,
+          { paddingTop: 12 },
+          CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null,
+        ]}>
           <View style={styles.row}>
             <View style={styles.fact}><Calendar size={16} /><Text style={styles.factText} numberOfLines={1} ellipsizeMode="tail">{formatDateTime(event.starts_at)}</Text></View>
             <View style={styles.fact}><Clock size={16} /><Text style={styles.factText} numberOfLines={1} ellipsizeMode="tail">{formatDateTime(event.ends_at)}</Text></View>
@@ -129,14 +138,14 @@ export default function EventDetailsScreen() {
 
         {/* Description */}
         {event.description ? (
-          <View style={styles.section}>
+          <View style={[styles.section, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null]}>
             <Text style={styles.sectionTitle}>About</Text>
             <Text style={styles.text}>{event.description}</Text>
           </View>
         ) : null}
           {role === 'participant' && user?.id ? (
             joined ? (
-              <TouchableOpacity onPress={() => setConfirmLeave(true)} style={[styles.btn, styles.btnOutline, styles.cta]}>
+              <TouchableOpacity onPress={() => setConfirmLeave(true)} style={[styles.btn, styles.btnOutline, styles.cta, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null]}>
                 <Text style={[styles.btnText, styles.btnTextOutline]}>Leave event</Text>
               </TouchableOpacity>
             ) : (
@@ -144,7 +153,7 @@ export default function EventDetailsScreen() {
                 onPress={async () => {
                   try { await joinEvent(event.id, user.id); setJoined(true); emitAppEvent({ type: 'event:joined', eventId: event.id }); if (pCount !== null) setPCount((c) => (c ?? 0) + 1); } catch {}
                 }}
-                style={[styles.btn, styles.btnPrimary, styles.cta]}
+                style={[styles.btn, styles.btnPrimary, styles.cta, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null]}
               >
                 <Text style={styles.btnText}>Join event</Text>
               </TouchableOpacity>

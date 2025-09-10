@@ -1,4 +1,5 @@
 import SplashLottie from '@/components/SplashLottie';
+import { upsertProfileFromMetadata } from '@/lib/profile';
 import { getSupabase } from '@/lib/supabase';
 import { Urbanist_400Regular, Urbanist_600SemiBold, Urbanist_700Bold, Urbanist_800ExtraBold, useFonts } from '@expo-google-fonts/urbanist';
 import { Session, User } from '@supabase/supabase-js';
@@ -16,6 +17,7 @@ export const useAuth = () => useContext(AuthContext);
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileSyncedUid, setProfileSyncedUid] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -36,6 +38,16 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   const user = session?.user ?? null;
   const role = (user?.user_metadata?.role as 'participant' | 'organization' | undefined) ?? 'participant';
   const value = useMemo(() => ({ session, user, role, loading }), [session, user, role, loading]);
+
+  // Ensure profile row (including email) is kept in sync on login/session changes
+  useEffect(() => {
+    (async () => {
+      if (user?.id && profileSyncedUid !== user.id) {
+        try { await upsertProfileFromMetadata(user as any); } catch {}
+        setProfileSyncedUid(user.id);
+      }
+    })();
+  }, [user?.id, profileSyncedUid]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
@@ -52,6 +64,8 @@ function Gate() {
   useEffect(() => {
     SplashScreen.preventAutoHideAsync();
   }, []);
+
+  // Optional: we used to gate by onboarded flag; now Welcome is default for logged-out.
 
   useEffect(() => {
     if (!loading && fontsLoaded) {
@@ -76,14 +90,17 @@ function Gate() {
       </View>
     );
   }
-  const AppStack = (
+  const AppStack = session ? (
     <Stack>
-      {session ? (
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      ) : (
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      )}
-  {/** settings stack removed */}
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      {/** settings stack removed */}
+      <Stack.Screen name="+not-found" />
+    </Stack>
+  ) : (
+    <Stack initialRouteName="welcome">
+      <Stack.Screen name="welcome" options={{ headerShown: false }} />
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      {/** settings stack removed */}
       <Stack.Screen name="+not-found" />
     </Stack>
   );

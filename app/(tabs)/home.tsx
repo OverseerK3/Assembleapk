@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 import { Search } from 'lucide-react-native';
 import { Heart as HeartIcon } from 'phosphor-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, Modal, Platform, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 // No live feed here; keep static demo posts
 
 // (definition appears below with the static POSTS)
@@ -75,6 +75,7 @@ const POSTS: EventPost[] = [
 export default function HomeScreen() {
   const { role, user } = useAuth();
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const [query, setQuery] = useState('');
   const [cat, setCat] = useState<'all' | 'hackathon' | 'tech event' | 'workshop' | 'projects' | 'tech meetup'>('all');
   const [live, setLive] = useState<any[]>([]);
@@ -186,17 +187,22 @@ export default function HomeScreen() {
     return [...liveMapped, ...staticMapped];
   }, [live, data]);
 
+  // Add a comfortable top gap similar to professional apps
+  const SAFE_TOP_PAD = Platform.select({ ios: 8, android: (StatusBar.currentHeight || 0) + 8, default: 8 });
+  // Responsive card max width (center on tablets/web)
+  const CARD_MAX_WIDTH = width >= 768 ? 720 : width >= 600 ? 560 : undefined;
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Top bar */}
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: 14 + (SAFE_TOP_PAD as number) }]}>
         <Text style={styles.brand}>Assemble</Text>
   {/* For organization role, remove the + Post from Home as requested */}
   <View style={{ width: 86 }} />
       </View>
 
-      {/* Participant search + chips */}
-      <View style={styles.toolsWrap}>
+  {/* Participant search + chips */}
+  <View style={[styles.toolsWrap, CARD_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CARD_MAX_WIDTH } : null]}>
         <View style={styles.searchRow}>
           <Search size={20}/>
           <TextInput
@@ -212,7 +218,7 @@ export default function HomeScreen() {
             {/* reserved for future quick action */}
           </TouchableOpacity>
         </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12 }}>
+  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 0 }}>
       {(['all','hackathon','tech event','workshop','projects','tech meetup'] as const).map((c) => (
             <TouchableOpacity key={c} onPress={() => setCat(c)} style={[styles.chip, cat === c && styles.chipActive]} activeOpacity={0.9}>
               <Text style={[styles.chipText, cat === c && styles.chipTextActive]}>
@@ -227,9 +233,9 @@ export default function HomeScreen() {
       <FlatList
         data={items}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{ paddingBottom: 24, paddingTop: 4 }}
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <View style={[styles.card, CARD_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CARD_MAX_WIDTH } : null]}>
             <View style={styles.headerRow}>
               {item.kind === 'live' ? (
                 item.org_avatar_url ? (
@@ -268,13 +274,13 @@ export default function HomeScreen() {
               )}
             </View>
             {item.kind === 'live' ? (
-              item.banner_url ? (
+        item.banner_url ? (
                 <TouchableOpacity onPress={() => router.push({ pathname: '/event/[id]', params: { id: item.id } } as any)} activeOpacity={0.9}>
-                  <Image source={{ uri: item.banner_url }} style={styles.banner} contentFit="cover" transition={100} />
+          <Image source={{ uri: item.banner_url }} style={styles.banner} contentFit="cover" transition={100} />
                 </TouchableOpacity>
               ) : <View style={styles.banner} />
             ) : (
-              item.banner ? <Image source={item.banner as any} style={styles.banner} contentFit="cover" transition={100} /> : <View style={styles.banner} />
+        item.banner ? <Image source={item.banner as any} style={styles.banner} contentFit="cover" transition={100} /> : <View style={styles.banner} />
             )}
             <View style={styles.footerRow}>
               {item.kind === 'live' ? (
@@ -407,9 +413,9 @@ const styles = StyleSheet.create({
   brand: { color: BLUE_TEXT_DARK, fontSize: 22, fontWeight: '800', letterSpacing: 0.2, fontFamily: 'Urbanist_800ExtraBold' },
   primaryCta: { backgroundColor: BLUE_PRIMARY, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10 },
   primaryCtaText: { color: '#FFFFFF', fontWeight: '800', fontFamily: 'Urbanist_800ExtraBold' },
-  toolsWrap: { paddingVertical: 10, gap: 10 },
+  toolsWrap: { paddingVertical: 10, paddingHorizontal: 12, gap: 10 },
   searchRow: {
-    marginHorizontal: 12,
+    marginHorizontal: 0,
     backgroundColor: '#FFFFFF',
     borderRadius: 999,
     paddingHorizontal: 12,
@@ -475,7 +481,16 @@ const styles = StyleSheet.create({
     borderColor: BLUE_BORDER,
   },
   tagGreen: { backgroundColor: '#E8F9EF', borderColor: '#7DD58C', color: '#146C43' },
-  banner: { height: 160, borderRadius: 12, backgroundColor: '#E6EDFF', marginBottom: 10, borderWidth: 1, borderColor: BLUE_BORDER },
+  // On larger screens, width is controlled by card; make banner scale responsively
+  banner: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: 12,
+    backgroundColor: '#E6EDFF',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: BLUE_BORDER,
+  },
   footerRow: { flexDirection: 'row', justifyContent: 'space-between' },
   footerText: { color: Theme.colors.muted, fontSize: 12, fontFamily: 'Urbanist_400Regular' },
   actionBtn: { backgroundColor: '#F0F4FF', borderColor: BLUE_BORDER, borderWidth: 1, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999 },

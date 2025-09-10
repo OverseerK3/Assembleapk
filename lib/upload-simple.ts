@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system';
+import { Platform } from 'react-native';
 import { getSupabase } from './supabase';
 
 // Simplified upload using Expo FileSystem with XMLHttpRequest fallback
@@ -23,29 +24,41 @@ export async function uploadToBucketSimple(params: { bucket: string; path: strin
     }
     console.log('🔑 Access token obtained');
 
-    // Use Expo FileSystem.uploadAsync for direct upload
-    const uploadUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/${bucket}/${path}`;
-    console.log('📡 Upload URL:', uploadUrl);
-
-    const uploadResult = await FileSystem.uploadAsync(uploadUrl, uri, {
-      httpMethod: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': contentType,
-        'x-upsert': 'true'
-      },
-      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-    });
-
-    console.log('📤 Upload result status:', uploadResult.status);
-    console.log('📤 Upload result body:', uploadResult.body);
-
-    if (uploadResult.status === 200 || uploadResult.status === 201) {
+    if (Platform.OS === 'web') {
+      // Web: use fetch to get Blob and use Supabase Storage upload API
+      console.log('🌐 Web upload via Supabase Storage');
+      const res = await fetch(uri);
+      const blob = await res.blob();
+      const { error: upErr } = await supabase.storage.from(bucket).upload(path, blob, { contentType, upsert: true });
+      if (upErr) throw upErr;
       const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-      console.log('✅ Simple upload successful:', data.publicUrl);
+      console.log('✅ Web upload successful:', data.publicUrl);
       return data.publicUrl;
     } else {
-      throw new Error(`Upload failed with status ${uploadResult.status}: ${uploadResult.body}`);
+      // Native: Use Expo FileSystem.uploadAsync for direct upload
+      const uploadUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/storage/v1/object/${bucket}/${path}`;
+      console.log('📡 Upload URL:', uploadUrl);
+
+      const uploadResult = await FileSystem.uploadAsync(uploadUrl, uri, {
+        httpMethod: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': contentType,
+          'x-upsert': 'true'
+        },
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      });
+
+      console.log('📤 Upload result status:', uploadResult.status);
+      console.log('📤 Upload result body:', uploadResult.body);
+
+      if (uploadResult.status === 200 || uploadResult.status === 201) {
+        const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+        console.log('✅ Native upload successful:', data.publicUrl);
+        return data.publicUrl;
+      } else {
+        throw new Error(`Upload failed with status ${uploadResult.status}: ${uploadResult.body}`);
+      }
     }
 
   } catch (error) {

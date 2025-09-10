@@ -6,9 +6,10 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Calendar, Globe, Link as LinkIcon, MapPin, Settings, Share2 } from 'lucide-react-native';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Linking, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 
 export default function ProfileScreen() {
+  const { width } = useWindowDimensions();
   const { user, role } = useAuth();
   const router = useRouter();
 
@@ -74,11 +75,15 @@ export default function ProfileScreen() {
 
   const initials = useMemo(() => getInitials(displayName), [displayName]);
 
+  const CONTENT_MAX_WIDTH = width >= 768 ? 720 : width >= 600 ? 560 : undefined;
+  const SAFE_TOP_PAD = Platform.select({ ios: 8, android: (StatusBar.currentHeight || 0) + 8, default: 8 });
+  const gridItemWidth = width >= 1024 ? '24%' : width >= 768 ? '32%' : width >= 480 ? '48%' : '100%';
+
   return (
     <SafeAreaView style={styles.container}>
     <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
       {/* Top actions */}
-      <View style={styles.headerRow}>
+  <View style={[styles.headerRow, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null, { paddingTop: SAFE_TOP_PAD }]}>
   <Text style={styles.title}>Profile</Text>
   <View style={{ flexDirection: 'row', gap: 10 }}>
           <IconButton onPress={() => router.push('/settings' as any)}>
@@ -94,7 +99,7 @@ export default function ProfileScreen() {
       <View style={styles.cover}>
         <View style={styles.coverAccent} />
       </View>
-      <View style={styles.headerCard}>
+  <View style={[styles.headerCard, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null]}>
         <View style={styles.avatarWrap}>
           <View style={styles.avatar}>
             {md?.avatar_url ? (
@@ -144,7 +149,7 @@ export default function ProfileScreen() {
       </View>
 
       {/* Tabs */}
-      <View style={styles.tabsBar}>
+  <View style={[styles.tabsBar, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null]}>
         {tabs.map((t) => (
           <TouchableOpacity key={t} onPress={() => setTab(t as any)} style={[styles.tabBtn, tab === t && styles.tabBtnActive]}>
             <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
@@ -153,15 +158,15 @@ export default function ProfileScreen() {
       </View>
 
       {tab === 'Posts' && (
-        <View style={styles.grid}>
+  <View style={[styles.grid, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null]}>
           {Array.from({ length: 9 }).map((_, i) => (
-            <View key={i} style={styles.gridItem} />
+            <View key={i} style={[styles.gridItem, { width: gridItemWidth }]} />
           ))}
         </View>
       )}
 
       {tab === 'About' && (
-        <View style={styles.card}>
+  <View style={[styles.card, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null]}>
           {!!md.bio && (
             <View style={{ marginBottom: 12 }}>
               <Text style={styles.sectionTitle}>About</Text>
@@ -211,7 +216,7 @@ export default function ProfileScreen() {
       )}
 
       {tab === 'Events' && isOrg && (
-        <View style={{ gap: 10 }}>
+  <View style={[{ gap: 10 }, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null]}>
           {loadingEvents ? (
             <Text style={styles.muted}>Loading events…</Text>
           ) : events.length === 0 ? (

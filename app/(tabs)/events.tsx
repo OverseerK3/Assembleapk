@@ -1,16 +1,17 @@
 import { useAuth } from '@/app/_layout';
 import { Theme } from '@/constants/Theme';
-import { deleteEvent, listEventsFor, listJoinedEvents } from '@/lib/events';
+import { deleteEvent, listEventsFor, listJoinedEvents, listParticipants } from '@/lib/events';
 import { getSupabase } from '@/lib/supabase';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Platform, Pressable, RefreshControl, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 
 export default function EventsScreen() {
   const { role, user } = useAuth();
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const [filter, setFilter] = useState<'your' | 'upcoming' | 'completed'>(role === 'organization' ? 'your' : 'your');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -18,6 +19,12 @@ export default function EventsScreen() {
   const [orgProfile, setOrgProfile] = useState<{ full_name?: string | null; avatar_url?: string | null } | null>(null);
   const [selected, setSelected] = useState<any | null>(null);
   const [pStatus, setPStatus] = useState<'upcoming' | 'completed'>('upcoming');
+  // Participants modal state
+  const [partsOpen, setPartsOpen] = useState(false);
+  const [parts, setParts] = useState<Array<{ user_id: string; full_name?: string | null; avatar_url?: string | null; username?: string | null; email?: string | null; joined_at?: string | null }>>([]);
+  const [partsLoading, setPartsLoading] = useState(false);
+  const [partsError, setPartsError] = useState<string | null>(null);
+  const [partsEvent, setPartsEvent] = useState<any | null>(null);
 
   async function load() {
     if (!user?.id) return;
@@ -97,6 +104,22 @@ export default function EventsScreen() {
     ]);
   }
 
+  async function onParticipants(item: any) {
+    try {
+      setPartsEvent(item);
+      setPartsError(null);
+      setPartsOpen(true);
+      setPartsLoading(true);
+      const rows = await listParticipants(item.id);
+      setParts(rows);
+    } catch (e: any) {
+      setPartsError(e?.message ?? 'Failed to load participants');
+      setParts([]);
+    } finally {
+      setPartsLoading(false);
+    }
+  }
+
   function renderYourEventCard(item: any) {
     const orgName = orgProfile?.full_name || 'Your organization';
     const datePill = formatDatePill(item.starts_at);
@@ -144,9 +167,12 @@ export default function EventsScreen() {
     );
   }
 
+  const CONTENT_MAX_WIDTH = width >= 768 ? 720 : width >= 600 ? 560 : undefined;
+  const SAFE_TOP_PAD = Platform.select({ ios: 8, android: (StatusBar.currentHeight || 0) + 8, default: 8 });
+
   return (
   <SafeAreaView style={styles.container}>
-      <View style={styles.headerRow}>
+      <View style={[styles.headerRow, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null, { paddingTop: SAFE_TOP_PAD }]}>
         <Text style={styles.header}>Events</Text>
         {role === 'organization' && (
           <TouchableOpacity style={styles.addBtn} activeOpacity={0.9} onPress={() => router.push('/create-event' as any)}>
@@ -154,7 +180,7 @@ export default function EventsScreen() {
           </TouchableOpacity>
         )}
       </View>
-      <View style={styles.segmentRow}>
+      <View style={[styles.segmentRow, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null]}>
         {(role === 'organization' ? (['your', 'upcoming', 'completed'] as const) : (['your'] as const)).map((k) => (
           <TouchableOpacity key={k} onPress={() => setFilter(k)} style={[styles.segment, filter === k && styles.segmentActive]}>
             <Text style={[styles.segmentText, filter === k && styles.segmentTextActive]}>
@@ -164,7 +190,7 @@ export default function EventsScreen() {
         ))}
       </View>
       {role === 'participant' && (
-        <View style={stylesInner.chipsRow}>
+        <View style={[stylesInner.chipsRow, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null]}>
           {(['upcoming','completed'] as const).map((k) => (
             <TouchableOpacity key={k} onPress={() => setPStatus(k)} style={[stylesInner.chip, pStatus === k && stylesInner.chipActive]}>
               <Text style={[stylesInner.chipText, pStatus === k && stylesInner.chipTextActive]}>
@@ -179,7 +205,7 @@ export default function EventsScreen() {
           <ActivityIndicator />
         </View>
       ) : (
-        <FlatList
+    <FlatList
           data={byFilter}
           keyExtractor={(item) => item.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -187,7 +213,7 @@ export default function EventsScreen() {
             role === 'organization' ? (
               renderYourEventCard(item)
             ) : (
-              <View style={stylesRich.card}>
+      <View style={[stylesRich.card, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null]}>
                 <View style={stylesRich.headerRow}>
                   {item.org_avatar_url ? (
                     <Image source={{ uri: item.org_avatar_url }} style={stylesRich.avatar} contentFit="cover" transition={100} />
@@ -222,7 +248,7 @@ export default function EventsScreen() {
               </View>
             )
           )}
-          contentContainerStyle={{ paddingBottom: 20 }}
+          contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: CONTENT_MAX_WIDTH ? 16 : 0 }}
           ListEmptyComponent={<Text style={[styles.cardMeta, { textAlign: 'center', marginTop: 24 }]}>No events.</Text>}
         />
       )}
@@ -234,11 +260,60 @@ export default function EventsScreen() {
             <TouchableOpacity style={[stylesM.btn, stylesM.btnPrimary]} onPress={() => selected && onEdit(selected)}>
               <Text style={stylesM.btnTextPrimary}>Edit</Text>
             </TouchableOpacity>
+            {role === 'organization' && (
+              <TouchableOpacity
+                style={[stylesM.btn, stylesM.btnPrimary]}
+                onPress={() => {
+                  const item = selected;
+                  setSelected(null);
+                  if (item) onParticipants(item);
+                }}
+              >
+                <Text style={stylesM.btnTextPrimary}>Participants</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={[stylesM.btn, stylesM.btnDanger]} onPress={() => selected && onDelete(selected)}>
               <Text style={stylesM.btnTextDanger}>Delete</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[stylesM.btn]} onPress={() => setSelected(null)}>
               <Text style={stylesM.btnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+      {/* Participants modal */}
+      <Modal visible={partsOpen} transparent animationType="fade" onRequestClose={() => setPartsOpen(false)}>
+        <Pressable style={stylesM.backdrop} onPress={() => setPartsOpen(false)}>
+          <View style={[stylesM.card, CONTENT_MAX_WIDTH ? { alignSelf: 'center', width: '100%', maxWidth: CONTENT_MAX_WIDTH } : null]}>
+            <Text style={stylesM.title}>Participants{partsEvent?.title ? ` • ${partsEvent.title}` : ''}</Text>
+            {partsLoading ? (
+              <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+                <ActivityIndicator />
+              </View>
+            ) : partsError ? (
+              <Text style={[styles.cardMeta, { textAlign: 'center' }]}>{partsError}</Text>
+            ) : parts.length === 0 ? (
+              <Text style={[styles.cardMeta, { textAlign: 'center' }]}>No participants yet.</Text>
+            ) : (
+              <View style={{ maxHeight: 360 }}>
+        {parts.map((p) => (
+                  <View key={p.user_id} style={stylesP.row}>
+                    {p.avatar_url ? (
+                      <Image source={{ uri: p.avatar_url }} style={stylesP.avatar} contentFit="cover" />
+                    ) : (
+                      <View style={stylesP.avatar} />
+                    )}
+                    <View style={{ flex: 1 }}>
+          <Text style={stylesP.name} numberOfLines={1}>{p.full_name || p.username || 'User'}</Text>
+          <Text style={stylesP.meta} numberOfLines={1}>{p.email || 'No email available'}</Text>
+                    </View>
+                    {!!p.joined_at && <Text style={stylesP.meta}>{new Date(p.joined_at).toLocaleDateString()}</Text>}
+                  </View>
+                ))}
+              </View>
+            )}
+            <TouchableOpacity style={[stylesM.btn]} onPress={() => setPartsOpen(false)}>
+              <Text style={stylesM.btnText}>Close</Text>
             </TouchableOpacity>
           </View>
         </Pressable>
@@ -329,6 +404,13 @@ const stylesM = StyleSheet.create({
   btnText: { color: Theme.colors.text, fontFamily: 'Urbanist_700Bold' },
   btnTextPrimary: { color: Theme.colors.text, fontFamily: 'Urbanist_700Bold' },
   btnTextDanger: { color: '#B42318', fontFamily: 'Urbanist_700Bold' },
+});
+
+const stylesP = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Theme.colors.border },
+  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#E6EDFF', borderWidth: 1, borderColor: Theme.colors.border },
+  name: { color: Theme.colors.text, fontFamily: 'Urbanist_700Bold' },
+  meta: { color: Theme.colors.muted, fontFamily: 'Urbanist_400Regular', fontSize: 12 },
 });
 
 const stylesInner = StyleSheet.create({

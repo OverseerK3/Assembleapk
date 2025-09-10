@@ -168,6 +168,51 @@ export async function countParticipants(eventId: string): Promise<number> {
   return count ?? 0;
 }
 
+export type Participant = {
+  user_id: string;
+  full_name?: string | null;
+  avatar_url?: string | null;
+  email?: string | null;
+  username?: string | null;
+  joined_at?: string | null;
+};
+
+export async function listParticipants(eventId: string): Promise<Participant[]> {
+  const supabase = getSupabase();
+  // Step 1: Get participant user ids and join times
+  const { data: epRows, error: epErr } = await supabase
+    .from('event_participants')
+    .select('user_id, created_at')
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: true });
+  if (epErr) throw epErr;
+  const ids = (epRows ?? []).map((r: any) => r.user_id).filter(Boolean);
+  if (ids.length === 0) return [];
+
+  // Step 2: Fetch profiles for those users
+  const { data: profs, error: profErr } = await supabase
+    .from('profiles')
+    .select('id, full_name, avatar_url, email, username')
+    .in('id', ids);
+  if (profErr) {
+    // Fallback to minimal data if profiles select is restricted
+    return (epRows ?? []).map((r: any) => ({ user_id: r.user_id, joined_at: r.created_at }));
+  }
+  const map = new Map<string, any>();
+  (profs ?? []).forEach((p: any) => map.set(p.id, p));
+  return (epRows ?? []).map((r: any) => {
+    const p = map.get(r.user_id);
+    return {
+      user_id: r.user_id,
+      full_name: p?.full_name ?? null,
+      avatar_url: p?.avatar_url ?? null,
+      email: p?.email ?? null,
+      username: p?.username ?? null,
+      joined_at: r.created_at ?? null,
+    } as Participant;
+  });
+}
+
 // Interested (likes)
 export async function toggleInterested(eventId: string, userId: string, setTo?: boolean): Promise<'added' | 'removed' | 'noop'> {
   const supabase = getSupabase();

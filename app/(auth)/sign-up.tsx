@@ -1,19 +1,19 @@
-import { upsertProfileFromMetadata } from '@/lib/profile';
 import { getSupabase } from '@/lib/supabase';
-import { uploadToBucketSimple } from '@/lib/upload-simple';
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import { Link, router } from 'expo-router';
+import { Eye, EyeOff } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
+// Icon casts to satisfy lucide types in RN
+const IconEye = Eye as any;
+const IconEyeOff = EyeOff as any;
 
 export default function SignUpScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
   const [role, setRole] = useState<'participant' | 'organization'>('participant');
-  const [bio, setBio] = useState('');
-  const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,44 +26,16 @@ export default function SignUpScreen() {
     }
     try {
       setLoading(true);
-      const { data, error } = await getSupabase().auth.signUp({
-        email,
-        password,
-        options: { data: { full_name: name, role, ...(bio ? { bio } : {}) } },
-      });
+      const { data, error } = await getSupabase().auth.signUp({ email, password, options: { data: { full_name: name, role } } });
       if (error) throw error;
-
-      // If we have a session and avatar selected, upload and set avatar_url metadata
-      if (avatarUri && data?.user?.id && data?.session) {
-        try {
-          const fileExt = avatarUri.split('.').pop() || 'jpg';
-          const path = `avatars/${data.user.id}/${Date.now()}.${fileExt}`;
-          const publicUrl = await uploadToBucketSimple({ bucket: 'event-banners', path, uri: avatarUri });
-          await getSupabase().auth.updateUser({ data: { avatar_url: publicUrl } });
-        } catch (e) {
-          console.warn('Signup avatar upload failed:', e);
-          // non-blocking
-        }
-      }
-      // Sync profiles table with latest metadata
-      if (data?.user) {
-        try { await upsertProfileFromMetadata(data.user as any); } catch {}
-      }
-      // Depending on email confirmations, the user may need to verify.
-      router.replace('/(tabs)');
+      // Navigate to OTP screen with context
+      router.replace({ pathname: '/(auth)/sign-up-otp', params: { email, fullName: name, role } } as any);
     } catch (e: any) {
       setError(e?.message ?? 'Failed to sign up');
     } finally {
       setLoading(false);
     }
   };
-
-  async function pickAvatar() {
-  const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.9 });
-    if (!result.canceled && result.assets?.length) {
-      setAvatarUri(result.assets[0].uri);
-    }
-  }
 
   return (
     <View style={styles.container}>
@@ -113,47 +85,32 @@ export default function SignUpScreen() {
           />
 
           <Text style={[styles.label, { marginTop: 12 }]}>Password</Text>
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Create a strong password"
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="password-new"
-            style={styles.input}
-            placeholderTextColor="#98A9D7"
-          />
-
-          {/* Optional profile image */}
-          <Text style={[styles.label, { marginTop: 12 }]}>Profile image (optional)</Text>
-          <View style={styles.avatarRow}>
-            <View style={styles.avatarCircle}>
-              {avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={{ width: '100%', height: '100%', borderRadius: 40 }} contentFit="cover" />
+          <View style={styles.inputWrap}>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Create a strong password"
+              secureTextEntry={!showPwd}
+              autoCapitalize="none"
+              autoComplete="password-new"
+              style={styles.inputInner}
+              placeholderTextColor="#98A9D7"
+            />
+            <TouchableOpacity onPress={() => setShowPwd((v) => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              {showPwd ? (
+                <IconEyeOff size={20} color={BLUE_PRIMARY} />
               ) : (
-                <View style={styles.avatarPlaceholder} />
+                <IconEye size={20} color={BLUE_PRIMARY} />
               )}
-            </View>
-            <TouchableOpacity onPress={pickAvatar} style={styles.pickBtn} activeOpacity={0.9}>
-              <Text style={styles.pickBtnText}>{avatarUri ? 'Change image' : 'Choose image'}</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Optional bio */}
-          <Text style={[styles.label, { marginTop: 12 }]}>Bio (optional)</Text>
-          <TextInput
-            value={bio}
-            onChangeText={setBio}
-            placeholder="Tell something about you"
-            multiline
-            style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
-            placeholderTextColor="#98A9D7"
-          />
+          <Text style={styles.muted}>We’ll send a 6‑digit code to verify your email.</Text>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <TouchableOpacity style={[styles.primaryBtn, loading && styles.btnDisabled]} onPress={onSignUp} activeOpacity={0.9} disabled={loading}>
-            <Text style={styles.primaryBtnText}>{loading ? 'Creating…' : 'Create account'}</Text>
+            <Text style={styles.primaryBtnText}>{loading ? 'Sending code…' : 'Create account'}</Text>
           </TouchableOpacity>
 
           <View style={styles.bottomRow}>
@@ -203,6 +160,19 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.select({ ios: 14, android: 12, default: 10 }),
     color: BLUE_TEXT,
   },
+  inputWrap: {
+    backgroundColor: '#F9FBFF',
+    borderColor: BORDER,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.select({ ios: 2, android: 0, default: 0 }),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  inputInner: { flex: 1, paddingVertical: Platform.select({ ios: 12, android: 10, default: 8 }), color: BLUE_TEXT },
+  toggleText: { color: BLUE_PRIMARY, fontWeight: '700' },
   segmentRow: {
     flexDirection: 'row',
     gap: 10,

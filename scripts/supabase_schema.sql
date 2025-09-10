@@ -6,10 +6,13 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   username text unique,
   full_name text,
+  email text,
   role text,
   bio text,
   website text,
   avatar_url text,
+  skills text,
+  college text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -18,6 +21,15 @@ create table if not exists public.profiles (
 do $$ begin
   if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='profiles' and column_name='avatar_url') then
     alter table public.profiles add column avatar_url text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='profiles' and column_name='email') then
+    alter table public.profiles add column email text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='profiles' and column_name='skills') then
+    alter table public.profiles add column skills text;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='profiles' and column_name='college') then
+    alter table public.profiles add column college text;
   end if;
 end $$;
 

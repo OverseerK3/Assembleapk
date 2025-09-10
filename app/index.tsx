@@ -25,5 +25,5 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={isAuthed ? '/(tabs)' : '/(auth)/sign-in'} />;
+  return <Redirect href={isAuthed ? '/(tabs)/home' : '/welcome'} />;
 }

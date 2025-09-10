@@ -2,7 +2,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Play } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Dimensions, FlatList, ListRenderItemInfo, StyleSheet, Text, TouchableOpacity, View, ViewToken } from 'react-native';
+import { Dimensions, FlatList, ListRenderItemInfo, Platform, StatusBar, StyleSheet, Text, TouchableOpacity, View, ViewToken } from 'react-native';
 
 const { height, width } = Dimensions.get('window');
 
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   page: { width, height, backgroundColor: 'black' },
   tapOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   playBadge: { backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 999, padding: 12 },
-  overlayTop: { position: 'absolute', top: 52, left: 16, right: 16, zIndex: 2 },
+  overlayTop: { position: 'absolute', top: 52 + ((Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0)), left: 16, right: 16, zIndex: 2 },
   overlayBottom: { position: 'absolute', bottom: 40, left: 16, right: 16, flexDirection: 'row', alignItems: 'flex-end' },
   header: { color: '#fff', fontSize: 20, fontFamily: 'Urbanist_800ExtraBold' },
   caption: { color: '#fff', fontSize: 16, marginRight: 12, fontFamily: 'Urbanist_600SemiBold' },

@@ -1,11 +1,17 @@
 import { getSupabase } from '@/lib/supabase';
 import { Link, router } from 'expo-router';
+import { Eye, EyeOff } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
+// Icon casts to satisfy lucide types in RN
+const IconEye = Eye as any;
+const IconEyeOff = EyeOff as any;
 
 export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +26,7 @@ export default function SignInScreen() {
       setLoading(true);
   const { error } = await getSupabase().auth.signInWithPassword({ email, password });
       if (error) throw error;
-      router.replace('/(tabs)');
+  router.replace('/(tabs)/home');
     } catch (e: any) {
       setError(e?.message ?? 'Failed to sign in');
     } finally {
@@ -48,16 +54,25 @@ export default function SignInScreen() {
           />
 
           <Text style={[styles.label, { marginTop: 12 }]}>Password</Text>
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder="••••••••"
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="password"
-            style={styles.input}
-            placeholderTextColor="#98A9D7"
-          />
+          <View style={styles.inputWrap}>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              secureTextEntry={!showPwd}
+              autoCapitalize="none"
+              autoComplete="password"
+              style={styles.inputInner}
+              placeholderTextColor="#98A9D7"
+            />
+            <TouchableOpacity onPress={() => setShowPwd((v) => !v)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              {showPwd ? (
+                <IconEyeOff size={20} color={BLUE_PRIMARY} />
+              ) : (
+                <IconEye size={20} color={BLUE_PRIMARY} />
+              )}
+            </TouchableOpacity>
+          </View>
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -123,6 +138,23 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.select({ ios: 14, android: 12, default: 10 }),
     color: BLUE_TEXT,
   },
+  inputWrap: {
+    backgroundColor: '#F9FBFF',
+    borderColor: BORDER,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.select({ ios: 2, android: 0, default: 0 }),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  inputInner: {
+    flex: 1,
+    paddingVertical: Platform.select({ ios: 12, android: 10, default: 8 }),
+    color: BLUE_TEXT,
+  },
+  toggleText: { color: BLUE_PRIMARY, fontWeight: '700' },
   primaryBtn: {
     marginTop: 16,
     backgroundColor: BLUE_PRIMARY,
